@@ -8,18 +8,27 @@ use parser::*;
 fn main() {
     use crate::parser::*;
 
-    let rule = Rule {
+    let negation = Rule {
         head: parse_expression("~(~A)").unwrap(),
         tail: parse_expression("A").unwrap(),
     };
+    let random_rule = Rule {
+        head: parse_expression("~(A & B)").unwrap(),
+        tail: parse_expression("~A | ~B").unwrap()
+    };
+    let expression = parse_expression("~(~((A | D) & ~C))").unwrap();
 
-    let expression = parse_expression("(~(~A) | B) & ~(~(C | D))").unwrap();
-
-    println!("rule: {rule}");
+    println!("negation: {negation}");
+    println!("random_rule: {random_rule}");
     println!("expr: {expression}");
+    println!("----------------Matching----------------");
 
-    match find_match(&rule, &expression) {
-        Some(m) => println!("{:?}", m),
-        None => println!("No match")
+    if let Some(matches) = find_match(&random_rule, &expression) {
+        for m in matches.iter() {
+            println!("{m}")
+        }
+    } else {
+        println!("No Match. rule: {random_rule}, expr: {expression}")
     }
+
 }

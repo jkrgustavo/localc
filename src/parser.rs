@@ -11,7 +11,7 @@ use std::iter::Peekable;
 *===============================
 */
 
-#[derive(Debug, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Hash, Clone)]
 pub enum Expr {
     Not(Box<Expr>),
     And(Box<Expr>, Box<Expr>),
@@ -30,8 +30,8 @@ impl std::fmt::Display for Expr {
     }
 }
 
-impl PartialEq for Expr {
-    fn eq(&self, rhs: &Expr) -> bool { 
+impl Expr {
+    pub fn shallow_eq(&self, rhs: &Expr) -> bool { 
         match (self, rhs) {
             (Expr::Sym(a), Expr::Sym(b)) => a == b,
             (Expr::Not(_), Expr::Not(_)) => true,
@@ -60,58 +60,13 @@ impl std::fmt::Display for Rule {
     }
 }
 
-type Bindings = HashMap<String, Vec<Expr>>;
+impl Rule {
+    pub fn apply(&self, expr: &Expr, bindings: &mut Bindings) -> Option<Expr> {
 
-pub fn find_match(rule: &Rule, expr: &Expr) -> Option<Bindings> {
-    let mut bindings = HashMap::new();
-    match find_rule(&rule, expr, &mut bindings) {
-        Some(_) => Some(bindings),
-        None => None
+
+
+        todo!()
     }
-}
-
-fn find_rule_impl(rule: &Expr, expr: &Expr, bindings: &mut Bindings) -> Option<()> {
-    use crate::parser::Expr::*;
-
-    match (rule, expr) {
-        (Sym(name), _) => { 
-            bindings
-                .entry(name.clone())
-                .or_insert_with(Vec::new)
-                .push(expr.clone());
-            Some(())
-        },
-
-        (Not(r), Not(e)) => find_rule_impl(&r, &e, bindings),
-
-        (And(l_rule, r_rule), And(l_expr, r_expr)) => { 
-            find_rule_impl(l_rule, l_expr, bindings)?;
-            find_rule_impl(r_rule, r_expr, bindings)?;
-            Some(())
-        },
-        (Or(l_rule, r_rule), Or(l_expr, r_expr)) => { 
-            find_rule_impl(l_rule, l_expr, bindings)?;
-            find_rule_impl(r_rule, r_expr, bindings)?;
-            Some(())
-        },
-        _ => { None }
-    }
-}
-
-fn find_rule(rule: &Rule, expr: &Expr, bindings: &mut Bindings) -> Option<()> {
-    use Expr::*;
-
-    if &rule.head == expr {
-        return find_rule_impl(&rule.head, expr, bindings);
-    }
-
-    match expr {
-        Not(e) => find_rule(rule, &e, bindings),
-        And(l, r) => find_rule(rule, l, bindings).or(find_rule(rule, r, bindings)),
-        Or(l, r) => find_rule(rule, l, bindings).or(find_rule(rule, r, bindings)),
-        _ => { None }
-    }
-
 }
 
 /*          Parser
@@ -216,4 +171,98 @@ impl<'a> Parser<'a> {
 
 pub fn parse_expression<'a>(expr: &'a str) -> Result<Expr, String> {
     Parser::new(expr).parse()
+}
+
+/*          Match
+*
+*===============================
+*/
+
+type Bindings = HashMap<String, Expr>;
+
+#[derive(Debug)]
+pub struct Match {
+    binds: Bindings,
+    full_expr: Expr
+}
+
+impl Match {
+    pub fn new(expr: Expr) -> Match {
+        Match {
+            binds: HashMap::new(),
+            full_expr: expr
+        }
+    }
+}
+
+impl std::fmt::Display for Match {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+        print!("Match: ");
+        println!("{}", self.full_expr);
+        for (k, v) in self.binds.iter() {
+            println!("'{k}' => {v}")
+        }
+        Ok(())
+    }
+}
+
+/*          bindings
+*
+*===============================
+*/
+
+pub fn find_match(rule: &Rule, expr: &Expr) -> Option<Vec<Match>> {
+    let mut matches: Vec<Match> = Vec::new();
+    match find_rule(&rule, expr, &mut matches) {
+        Some(_) => Some(matches),
+        None => None
+    }
+}
+
+fn find_rule_impl(rule: &Expr, expr: &Expr, bindings: &mut Bindings) -> Option<()> {
+    use crate::parser::Expr::*;
+
+    match (rule, expr) {
+        (Sym(name), _) => { 
+            bindings
+                .entry(name.clone())
+                .or_insert(expr.clone());
+            Some(())
+        },
+
+        (Not(r), Not(e)) => find_rule_impl(&r, &e, bindings),
+
+        (And(l_rule, r_rule), And(l_expr, r_expr)) => { 
+            find_rule_impl(l_rule, l_expr, bindings)?;
+            find_rule_impl(r_rule, r_expr, bindings)?;
+            Some(())
+        },
+        (Or(l_rule, r_rule), Or(l_expr, r_expr)) => { 
+            find_rule_impl(l_rule, l_expr, bindings)?;
+            find_rule_impl(r_rule, r_expr, bindings)?;
+            Some(())
+        },
+        _ => { None }
+    }
+}
+
+fn find_rule(rule: &Rule, expr: &Expr, matches: &mut Vec<Match>) -> Option<()> {
+    use Expr::*;
+
+    if rule.head.shallow_eq(expr) {
+        let mut mat = Match::new(expr.clone());
+
+        match find_rule_impl(&rule.head, expr, &mut mat.binds) {
+            Some(_) => return Some(matches.push(mat)),
+            None => {}
+        }
+    }
+
+    match expr {
+        Not(e) => find_rule(rule, &e, matches),
+        And(l, r) => find_rule(rule, l, matches).or(find_rule(rule, r, matches)),
+        Or(l, r) => find_rule(rule, l, matches).or(find_rule(rule, r, matches)),
+        _ => { None }
+    }
+
 }
