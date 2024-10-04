@@ -5,7 +5,7 @@ mod parser;
 use parser::*;
 
 
-fn main() {
+fn main() -> Result<(), String> {
     use crate::parser::*;
 
     let negation = Rule {
@@ -16,19 +16,27 @@ fn main() {
         head: parse_expression("~(A & B)").unwrap(),
         tail: parse_expression("~A | ~B").unwrap()
     };
-    let expression = parse_expression("~(~((A | D) & ~C))").unwrap();
+    let expression = parse_expression("(~((A | D) & ~(~C)))").unwrap();
 
-    println!("negation: {negation}");
-    println!("random_rule: {random_rule}");
-    println!("expr: {expression}");
+    //println!("negation: {negation}\nrandom_rule: {random_rule}\nexpr: {expression}");
     println!("----------------Matching----------------");
 
-    if let Some(matches) = find_match(&random_rule, &expression) {
-        for m in matches.iter() {
+    if let Some(v) = random_rule.find_match(&expression) {
+        //println!("Rule: {random_rule}");
+        for m in v.iter() {
             println!("{m}")
         }
-    } else {
-        println!("No Match. rule: {random_rule}, expr: {expression}")
     }
 
+    println!("----------------Applying----------------");
+    println!("Expr: {expression}");
+    println!("Rules: {negation} -- {random_rule}");
+    println!("{}", expression
+        .apply_rule(&negation)?
+        .apply_rule(&random_rule)?
+    );
+
+
+    Ok(())
 }
+
