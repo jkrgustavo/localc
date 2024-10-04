@@ -30,6 +30,7 @@ impl std::fmt::Display for Expr {
     }
 }
 
+// Test only the top level expression
 impl Expr {
     pub fn shallow_eq(&self, rhs: &Expr) -> bool { 
         match (self, rhs) {
@@ -42,15 +43,68 @@ impl Expr {
     }
 }
 
+// Find instances of a rule within an expression
 impl Expr {
     pub fn find_match(&self, rule: &Rule) -> Option<Vec<Match>> {
-        todo!()
+        let mut matches = Vec::new();
+        match self.find_trav(rule, &mut matches) {
+            Some(_) => Some(matches),
+            None => None
+        }
+    }
+
+    pub fn find_trav(&self, rule: &Rule, mats: &mut Vec<Match>) -> Option<()> {
+        use Expr::*;
+
+        if rule.head.shallow_eq(self) {
+            let mut mat = Match::new(self.clone(), rule.clone());
+
+            match self.find_impl(&rule.head, &mut mat.binds) {
+                Some(_) => return Some(mats.push(mat)),
+                None => {}
+            }
+        }
+
+        match self {
+            Not(e) => e.find_trav(rule, mats),
+            And(l, r) => l.find_trav(rule, mats).or(r.find_trav(rule, mats)),
+            Or(l, r) => l.find_trav(rule, mats).or(r.find_trav(rule, mats)),
+            _ => { None }
+        }
+    }
+
+    pub fn find_impl(&self, rule: &Expr, bindings: &mut Bindings) -> Option<()> {
+        use Expr::*;
+
+        match (rule, self) {
+            (Sym(name), _) => { 
+                bindings
+                    .entry(name.clone())
+                    .or_insert(self.clone());
+                Some(())
+            },
+
+            (Not(r), Not(e)) => e.find_impl(r, bindings),
+
+            (And(l_rule, r_rule), And(l_expr, r_expr)) => { 
+                l_expr.find_impl(l_rule, bindings)?;
+                r_expr.find_impl(r_rule, bindings)?;
+                Some(())
+            },
+            (Or(l_rule, r_rule), Or(l_expr, r_expr)) => { 
+                l_expr.find_impl(l_rule, bindings)?;
+                r_expr.find_impl(r_rule, bindings)?;
+                Some(())
+            },
+            _ => { None }
+        }
     }
 }
 
+// Apply rules to an expression
 impl Expr {
     pub fn apply_rule(&self, rule: &Rule) -> Result<Expr, String> {
-        let matches = rule.find_match(self)
+        let matches = self.find_match(rule)
             .ok_or_else(|| format!("Unable to find instances of rule [[{rule}]] in [[{self}]]"))?;
 
         matches.into_iter().try_fold(self.clone(), |acc, mat| acc.apply_trav(&mat))
@@ -115,66 +169,6 @@ pub struct Rule {
 impl std::fmt::Display for Rule {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
         write!(f, "{} => {}", self.head, self.tail)
-    }
-}
-
-// Finding matches
-impl Rule {
-    pub fn find_match(&self, expr: &Expr) -> Option<Vec<Match>> {
-        let mut matches: Vec<Match> = Vec::new();
-        match self.find_rule(expr, &mut matches) {
-            Some(_) => Some(matches),
-            None => None
-        }
-    }
-
-
-    fn find_rule_impl(&self, rule: &Expr, expr: &Expr, bindings: &mut Bindings) -> Option<()> {
-        use Expr::*;
-
-        match (rule, expr) {
-            (Sym(name), _) => { 
-                bindings
-                    .entry(name.clone())
-                    .or_insert(expr.clone());
-                Some(())
-            },
-
-            (Not(r), Not(e)) => self.find_rule_impl(&r, &e, bindings),
-
-            (And(l_rule, r_rule), And(l_expr, r_expr)) => { 
-                self.find_rule_impl(l_rule, l_expr, bindings)?;
-                self.find_rule_impl(r_rule, r_expr, bindings)?;
-                Some(())
-            },
-            (Or(l_rule, r_rule), Or(l_expr, r_expr)) => { 
-                self.find_rule_impl(l_rule, l_expr, bindings)?;
-                self.find_rule_impl(r_rule, r_expr, bindings)?;
-                Some(())
-            },
-            _ => { None }
-        }
-    }
-
-    fn find_rule(&self, expr: &Expr, matches: &mut Vec<Match>) -> Option<()> {
-        use Expr::*;
-
-        if self.head.shallow_eq(expr) {
-            let mut mat = Match::new(expr.clone(), self.to_owned());
-
-            match self.find_rule_impl(&self.head, expr, &mut mat.binds) {
-                Some(_) => return Some(matches.push(mat)),
-                None => {}
-            }
-        }
-
-        match expr {
-            Not(e) => self.find_rule(&e, matches),
-            And(l, r) => self.find_rule(l, matches).or(self.find_rule(r, matches)),
-            Or(l, r) => self.find_rule(l, matches).or(self.find_rule(r, matches)),
-            _ => { None }
-        }
-
     }
 }
 
