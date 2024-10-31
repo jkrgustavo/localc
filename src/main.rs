@@ -4,7 +4,6 @@ mod parser;
 
 use parser::*;
 
-
 fn main() -> Result<(), String> {
     use crate::parser::*;
 
@@ -18,11 +17,9 @@ fn main() -> Result<(), String> {
     };
     let expression = parse_expression("(~((A | D) & ~(~C)))").unwrap();
 
-    //println!("negation: {negation}\nrandom_rule: {random_rule}\nexpr: {expression}");
     println!("----------------Matching----------------");
 
     if let Some(v) = expression.find_match(&random_rule) {
-        //println!("Rule: {random_rule}");
         for m in v.iter() {
             println!("{m}")
         }
