@@ -1,38 +1,27 @@
 #![allow(unused)]
 
 mod parser;
-
-use parser::*;
+use crate::parser::*;
 
 fn main() -> Result<(), String> {
-    use crate::parser::*;
 
     let negation = Rule {
         head: parse_expression("~(~A)").unwrap(),
         tail: parse_expression("A").unwrap(),
     };
-    let random_rule = Rule {
+    let de_morgans = Rule {
         head: parse_expression("~(A & B)").unwrap(),
         tail: parse_expression("~A | ~B").unwrap()
     };
     let expression = parse_expression("(~((A | D) & ~(~C)))").unwrap();
 
-    println!("----------------Matching----------------");
-
-    if let Some(v) = expression.find_match(&random_rule) {
-        for m in v.iter() {
-            println!("{m}")
-        }
-    }
-
-    println!("----------------Applying----------------");
-    println!("Expr: {expression}");
-    println!("Rules: {negation} -- {random_rule}");
+    println!("[Expression]: {expression}");
+    println!("[Negation]:   {negation}");
+    println!("[DeMorgan]:   {de_morgans}");
     println!("{}", expression
         .apply_rule(&negation)?
-        .apply_rule(&random_rule)?
+        .apply_rule(&de_morgans)?
     );
-
 
     Ok(())
 }
